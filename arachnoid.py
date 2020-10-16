@@ -10,17 +10,18 @@ import os
 
 '''
 #TODO:
- - server and client, none are the rooter
+ - server and client, none are the rooter				- DONE
  - check if client dead from time to time
  - using hashing
  - encryption
- - different data in/out (now over txt files)
  - being able to close the server in a controlled way
+ - something incredible
  -
 
 '''
 
 
+KILL_TASK_ON_CLOSE = True
 _LEVEL_TAGS = {'info' : '!', 'msg': '-', 'unexpected': '?', 'warning': 'W', 'error': 'E'}
 hashlib_vars = vars(hashlib)
 hash_func_struct = lambda name: lambda x: hashlib_vars[name](x).hexdigest()
@@ -54,12 +55,12 @@ class Web:
 
 		# Server File Handler
 		self.server_in_file = server_in_file
-		open(self.server_in_file, 'w').write('')
-		self.file_in_handler = open(self.server_in_file, 'a')
+		open(self.server_in_file, 'wb').write(b'')
+		self.file_in_handler = open(self.server_in_file, 'ab')
 
 		self.server_out_file = server_out_file
-		open(self.server_out_file, 'w').write('')
-		self.file_out_handler = open(self.server_out_file, 'r')
+		open(self.server_out_file, 'wb').write(b'')
+		self.file_out_handler = open(self.server_out_file, 'rb')
 
 		# variables & flags
 		self.soc = None
@@ -68,18 +69,23 @@ class Web:
 		self._init_done = False
 		self._started = False
 		self.empty_flag = '<>'
+		self.bempty_flag = self.empty_flag.encode('utf8')
 		self.exit_flag = '<EXIT>'
+		self.bexit_flag = self.exit_flag.encode('utf8')
 		self.verbose = verbose
 		global _LEVEL_TAGS
 		self._level_tags = _LEVEL_TAGS
 
 		# lambdas
 		self.cprint = lambda s, level='info': print('[{}] {}'.format(self._level_tags[level], s)) if self.verbose else None
+		self.df_read_f = self.file_out_handler.read
 
 	def write_in(self, s):
+		if type(s) == str:
+			s = s.encode('utf8')
 		self.file_in_handler.write(s)
 		self.file_in_handler.close()
-		self.file_in_handler = open(self.server_in_file, 'a')
+		self.file_in_handler = open(self.server_in_file, 'ab')
 
 	def err_exit(self):
 		print_exc()
@@ -91,7 +97,7 @@ class Web:
 		self.cprint('Socket created.')
 		self._init_done = True
 
-	def start(self):
+	def start(self, read_f):
 		try:
 			self.soc.bind((self.host, self.port))
 		except:
@@ -123,13 +129,13 @@ class Web:
 				server_info = json.dumps({'exit flag': self.exit_flag, 'empty flag' : self.empty_flag, 'host': self.host, 'port': self.port, 'max buffer size': self.max_buffer_size})
 				server_info = server_info.encode('utf8')
 				connection.sendall(server_info)
-				self.connections[ip]['thread'] = Thread(target=self.client_thread, args=(connection, ip, port, self.max_buffer_size))
+				self.connections[ip]['thread'] = Thread(target=self.client_thread, args=(connection, ip, port, self.max_buffer_size, self.df_read_f))
 				self.connections[ip]['thread'].start()
 				self.cprint('Client Thread started')
 			except:
 				self.err_exit()
 
-	def client_thread(self, connection, ip, port, max_buffer_size):
+	def client_thread(self, connection, ip, port, max_buffer_size, read_f):
 		client_info = connection.recv(max_buffer_size)
 		client_info = client_info.decode('utf8').rstrip()
 		print('raw client info', client_info)
@@ -143,29 +149,33 @@ class Web:
 
 		while self.alive and 'OK Flag.txt' in os.listdir():
 			client_input = connection.recv(max_buffer_size)
-			client_input_size = sys.getsizeof(client_input)
+			client_input_size = len(client_input)
 
 			if client_input_size > max_buffer_size:
 				self.cprint('Input greater than max buffer size: {}>{}. Exiting'.format(client_input_size, max_buffer_size), 'error')
 				break
 
-			client_input = client_input.decode("utf8").rstrip()
+			client_input = client_input.rstrip()
 
-			if client_input == self.exit_flag:
+			if client_input == self.bexit_flag:
 				self.cprint('Client is requesting to exit.')
 				break
 
+			elif client_input == '<STOP>':
+				self.close()
+				break
+
 			else:
-				if client_input != self.empty_flag:
-					timestamp = datetime.now().timestamp()
-					self.write_in('{} - {},{}: {}\n'.format(timestamp, ip, port, client_input))
-					self.cprint('recv: {}'.format(client_input), 'msg')
-				msg = self.file_out_handler.read()
+				if client_input != self.bempty_flag:
+					timestamp = str(datetime.now().timestamp()).encode('utf8')
+					self.write_in(b'<<RECV>> %b - %b,%b: %b\n' % (timestamp, ip.encode('utf8'), str(port).encode('utf8'), client_input))
+					self.cprint('recv: {} bytes -> {}'.format(len(client_input), client_input[:15]), 'msg')
+
+				msg = read_f()
 				if not msg:
-					msg = self.empty_flag
+					msg = self.bempty_flag
 				else:
-					self.cprint('sent: {}'.format(msg), 'msg')
-				msg = msg.encode('utf8')
+					self.cprint('sent: {} bytes -> {}'.format(len(msg), msg[:15]), 'msg')
 				connection.sendall(msg)
 
 		connection.close()
@@ -176,10 +186,12 @@ class Web:
 	def close(self):
 		self.alive = False
 		for conn in self.connections.items():
-			conn.close()
+			conn['connection'].close()
+			conn['thread'].join()
 		self.file_in_handler.close()
 		self.file_out_handler.close()
-
+		if KILL_TASK_ON_CLOSE:
+			os.system('taskkill /f /pid {}'.format(os.getpid()))
 
 
 
@@ -200,12 +212,12 @@ class Spider:
 
 		# Client File Handler
 		self.client_in_file = client_in_file
-		open(self.client_in_file, 'w').write('')
-		self.file_in_handler = open(self.client_in_file, 'a')
+		open(self.client_in_file, 'wb').write(b'')
+		self.file_in_handler = open(self.client_in_file, 'ab')
 
 		self.client_out_file = client_out_file
-		open(self.client_out_file, 'w').write('')
-		self.file_out_handler = open(self.client_out_file, 'r')
+		open(self.client_out_file, 'wb').write(b'')
+		self.file_out_handler = open(self.client_out_file, 'rb')
 
 		# variables & flags
 		self.client = None
@@ -219,10 +231,15 @@ class Spider:
 		# lambdas
 		self.cprint = lambda s, level='info': print('[{}] {}'.format(self._level_tags[level], s)) if self.verbose else None
 
+		# alpha
+		self.tasks = []
+
 	def write_in(self, s):
+		if type(s) == str:
+			s = s.encode('utf8')
 		self.file_in_handler.write(s)
 		self.file_in_handler.close()
-		self.file_in_handler = open(self.client_in_file, 'a')
+		self.file_in_handler = open(self.client_in_file, 'ab')
 
 	def connect(self):
 		self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -231,6 +248,10 @@ class Spider:
 		self.server_info = self.client.recv(self.max_buffer_size).decode('utf8').rstrip()
 		self.write_in(str(datetime.now().timestamp()) + ' - ' + self.server_info + '\n')
 		self.server_info = json.loads(self.server_info)
+
+		self.bempty_flag = self.server_info['empty flag'].encode('utf8')
+		self.bexit_flag = self.server_info['exit flag'].encode('utf8')
+
 		self.cprint('Server info: {}'.format(self.server_info))
 		self.cprint('Sending own info...')
 		info = json.dumps(self.additional_info)
@@ -244,43 +265,59 @@ class Spider:
 		while self.alive and 'OK Flag.txt' in os.listdir():
 			msg = self.file_out_handler.read()
 			if not msg:
-				msg = self.server_info['empty flag']
+				msg = self.bempty_flag
 			else:
-				self.cprint('sent: {}'.format(msg), 'msg')
+				self.cprint('sent: {} bytes -> {}'.format(len(msg), msg[:15]), 'msg')
 
-			if msg == self.server_info['exit flag']:
-				msg = msg.encode('utf8')
-				self.client.sendall(msg)
+			self.client.sendall(msg)
+
+			if msg == self.bexit_flag:
 				self.cprint('Closing Connection.')
 				break
 
-			msg = msg.encode('utf8')
+			response = self.client.recv(self.max_buffer_size)
+			if response != self.bempty_flag :
+				timestamp = str(datetime.now().timestamp()).encode('utf8')
+				self.write_in(b'<<RECV>> %b: %b\n' % (timestamp, response))
+				self.cprint('recv: {} bytes -> {}'.format(len(response), response[:15]), 'msg')
+
+	def loop2(self):
+		open('OK Flag.txt', 'w').write('1')
+
+		while self.alive and 'OK Flag.txt' in os.listdir():
+			if self.tasks:
+				msg = self.tasks[0]
+				self.tasks.pop(0)
+				self.cprint('sent: {} bytes -> {}'.format(len(msg), msg[:15]), 'msg')
+			else:
+				msg = self.bempty_flag
+
 			self.client.sendall(msg)
-			response = self.client.recv(self.max_buffer_size).decode('utf8')
-			if response != self.server_info['empty flag']:
-				timestamp = datetime.now().timestamp()
-				self.write_in('{}: {}'.format(timestamp, response))
-				self.cprint('recv: {}'.format(response), 'msg')
+
+			if msg == self.bexit_flag:
+				self.cprint('Closing Connection.')
+				break
+
+			response = self.client.recv(self.max_buffer_size)
+			if response != self.bempty_flag :
+				timestamp = str(datetime.now().timestamp()).encode('utf8')
+				self.write_in(b'<<RECV>> %b: %b\n' % (timestamp, response))
+				self.cprint('recv: {} bytes -> {}'.format(len(response), response[:15]), 'msg')
+
 
 	def close(self):
 		self.client.close()
 		self.file_in_handler.close()
 		self.file_out_handler.close()
+		if KILL_TASK_ON_CLOSE:
+			os.system('taskkill /f /pid {}'.format(os.getpid()))
 
 
+def get_pid():
+	return os.getpid()
 
-
-if __name__ == '__main__' and sys.argv[-1] == 'server':
-	server = Web('127.0.0.1', 1234)
-	server.init()
-	server.start()
-	server.close()
-
-if __name__ == '__main__' and sys.argv[-1] == 'client':
-	client = Spider('127.0.0.1', 1234)
-	client.connect()
-	client.loop()
-	client.close()
+def get_ip_address():
+	return socket.gethostbyname_ex(socket.gethostname())[2]
 
 
 
