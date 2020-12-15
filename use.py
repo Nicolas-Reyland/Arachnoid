@@ -2,6 +2,8 @@
 import arachnoid
 from argparse import ArgumentParser
 
+DEFAULT_VERBOSE = 1
+
 print(f'PID: {arachnoid.os.getpid()}')
 
 parser = ArgumentParser(description='Quick & basic use of Arachnoid')
@@ -59,7 +61,7 @@ parser.add_argument('-v',
 					metavar='verbose',
 					type=int,
 					help='verbose [0, 1]',
-					default=1)
+					default=DEFAULT_VERBOSE)
 
 args = vars(parser.parse_args())
 print(args)
@@ -77,6 +79,7 @@ if args['r__role'] == 'server':
 							verbose=args['verbose']
 						)
 	server.init()
+	if args['verbose']: print('Starting 🕸️ Server')
 	server.start(server.df_read_f)
 	server.close()
 
@@ -90,6 +93,7 @@ elif args['r__role'] == 'client':
 							verbose=args['verbose']
 						)
 	client.connect()
+	if args['verbose']: print('Starting 🕷️ Client')
 	client.loop()
 	client.close()
 

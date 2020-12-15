@@ -154,7 +154,7 @@ class Web:
 				self.err_exit()
 
 	def client_thread(self, connection, ip, port, max_buffer_size, read_f):
-		client_info = connection.recv(self.max_buffer_size)
+		client_info = connection.recv(max_buffer_size)
 		client_info = client_info.decode('utf8').rstrip()
 		print('raw client info', client_info)
 		if client_info[-1] != '}':
@@ -166,11 +166,11 @@ class Web:
 		self.connections[ip]['info'] = client_info # yep, copy of name in this dict (bc why not ?)
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
-			client_input = connection.recv(self.max_buffer_size)
+			client_input = connection.recv(max_buffer_size)
 			client_input_size = len(client_input)
 
-			if client_input_size > self.max_buffer_size:
-				self.cprint('Input greater than max buffer size: {}>{}. Exiting'.format(client_input_size, self.max_buffer_size), 'error')
+			if client_input_size > max_buffer_size:
+				self.cprint('Input greater than max buffer size: {}>{}. Exiting'.format(client_input_size, max_buffer_size), 'error')
 				break
 
 			client_input = client_input.rstrip()
@@ -202,7 +202,7 @@ class Web:
 		return
 
 	def client_thread2(self, connection, ip, port, max_buffer_size, *args):
-		client_info = connection.recv(self.max_buffer_size)
+		client_info = connection.recv(max_buffer_size)
 		client_info = client_info.decode('utf8').rstrip()
 		print('raw client info', client_info)
 		if client_info[-1] != '}':
@@ -214,31 +214,56 @@ class Web:
 		self.connections[ip]['info'] = client_info # yep, copy of name in this dict (bc why not ?)
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
-			client_input = connection.recv(self.max_buffer_size)
+			client_input = connection.recv(max_buffer_size)
 			client_input_size = len(client_input)
 
-			if client_input_size > self.max_buffer_size:
-				self.cprint('Input greater than max buffer size: {}>{}. Exiting'.format(client_input_size, self.max_buffer_size), 'error')
+			if client_input_size > max_buffer_size:
+				self.cprint('Input greater than max buffer size: {}>{}. Exiting'.format(client_input_size, max_buffer_size), 'error')
 				break
 
 			client_input = client_input.rstrip()
 
-			corrupted, client_inputs = self._handle_double_input(client_input) # too much data (from another packet too)
-			if corrupted:
-				n = len(client_inputs)
-				for i,client_input in enumerate(client_inputs):
-					if i == n-1: # the last one (could not end, didn't check)
-						client_input = self._handle_half_input(client_input, connection)
-					self._handle_client_input(client_input)
-					msg = self.bempty_flag
-					connection.sendall(msg) # could be really messed up when n > 2. Keep it cool and FEAR THE DAMN THING. not gonna act tho.
+			if client_input[-1] != 62: #! 62 -> b'>'
+				print('Got corrupted data. Trying to catch the rest')
+
+				print('command input base', client_input)
+
+				connection.sendall(self.bempty_flag)
+				client_input2 = connection.recv(max_buffer_size)
+
+				print('command input2 base', client_input2)
+
+				counter = 0
+				while client_input2[-1] != 62:
+					if len(client_input) + len(client_input2) > max_buffer_size:
+						raise Exception('Recovery of corrupted data failed. buffer_size > max_buffer_size')
+					# assuming this is absolutely the end and not a whole new packet...
+					client_input += client_input2
+
+					connection.sendall(self.bempty_flag)
+					client_input2 = connection.recv(max_buffer_size)
+
+					print('client input2', counter, client_input2)
+
+					counter += 1
+					if counter == 10:
+						raise Exception('Tried {} times to recover corrupted data. Stopping. I sense fear.'.format(counter))
+
+				client_input += client_input2
+
+			if client_input == self.bexit_flag:
+				self.cprint('Client is requesting to exit.')
+				break
+
+			elif client_input == b'<STOP>':
+				self.close()
+				break
 
 			else:
-				client_input = self._handle_half_input(client_input, connection) # not enough data (missing data in next packet)
+				if client_input != self.bempty_flag:
+					self.in_tasks.append(client_input) # in_tasks: recv, send to interpreter
+					self.cprint('recv: {} bytes -> {}'.format(len(client_input), client_input[:30]), 'msg')
 
-				self._handle_client_input(client_input)
-
-				# send out
 				if self.out_tasks: # out_tasks: to send, from interpreter
 					msg = self.out_tasks.pop(0)
 					self.cprint('sent: {} bytes -> {}'.format(len(msg), msg[:30]), 'msg')
@@ -250,89 +275,6 @@ class Web:
 		self.cprint('Connection ip: {} port: {} closed.'.format(ip, port))
 		sys.exit()
 		return
-
-	def _handle_double_input(self, client_input):
-		if b'><' in client_input: # client_input has too much
-			l = client_input.split(b'><')
-			for i in range(len(l)):
-				if i == 0:
-					l[i] += b'>'
-				else:
-					l[i] = b'<' + l[i]
-			return True, l
-		else:
-			return False, [client_input]
-
-	def _handle_half_input(self, client_input, connection):
-		if client_input[-1] != 62: #! 62 -> b'>' # client_input has not enough
-			print('Got corrupted data. Trying to catch the rest')
-
-			print('command input base', client_input)
-
-			connection.sendall(self.bempty_flag)
-			client_input2 =  connection.recv(self.max_buffer_size)
-			corrupted, client_inputs2 = self._handle_double_input(client_input2)
-			if corrupted:
-				n = len(client_inputs2)
-				for i,client_input2 in enumerate(client_inputs2):
-					if i == n - 1:
-						client_input = client_inputs2
-						if client_input[-1] == 62:
-							return client_input
-						else:
-							client_input2 = connection.recv(self.max_buffer_size) #! security here! (max_buffer_size not checked)
-						break # keep this one, and check if half-input anyway
-					self._handle_client_input(client_input2)
-					msg = self.bempty_flag
-					connection.sendall(msg) # this can break. (n>2). yep mate, don't wanna think about that
-
-			print('command input2 base', client_input2)
-
-			counter = 0
-			while client_input2[-1] != 62:
-				if len(client_input) + len(client_input2) > self.max_buffer_size:
-					print('client_input', client_input, '\n\nclient_input2', client_input2)
-					raise Exception('Recovery of corrupted data failed. buffer_size > self.max_buffer_size')
-				# assuming this is absolutely the end and not a whole new packet...
-				client_input += client_input2
-
-				connection.sendall(self.bempty_flag)
-				client_input2 = connection.recv(self.max_buffer_size)
-				corrupted, client_inputs2 = self._handle_double_input(client_input2)
-				if corrupted:
-					n = len(client_inputs2)
-					for i,client_input2 in enumerate(client_inputs2):
-						if i == n - 1:
-		
-							break # keep this one, and check if half-input anyway
-						self._handle_client_input(client_input2)
-						msg = self.bempty_flag
-						connection.sendall(msg)
-
-				print('client input2', counter, client_input2)
-
-				counter += 1
-				if counter == 10:
-					raise Exception('Tried {} times to recover corrupted data. Stopping. I sense fear.'.format(counter))
-
-			client_input += client_input2
-			print('Recovered corruped data.')
-		return client_input
-
-	def _handle_client_input(self, client_input):
-
-		if client_input == self.bexit_flag:
-			self.cprint('Client is requesting to exit.')
-			return False
-
-		elif client_input == b'<STOP>':
-			self.close()
-			return False
-
-		elif client_input != self.bempty_flag:
-			self.in_tasks.append(client_input) # in_tasks: recv, send to interpreter
-			self.cprint('recv: {} bytes -> {}'.format(len(client_input), client_input[:30]), 'msg')
-		return True
 
 	def close(self):
 		self.alive = False
