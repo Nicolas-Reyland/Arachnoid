@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 
+from os_utils import os_name, kill_pid
+
 '''
 #TODO:
  - server and client, none are the rooter				- DONE
@@ -144,7 +146,7 @@ class Web:
 
 			try:
 				self.cprint('Sending Server info...')
-				server_info = json.dumps({'exit flag': self.exit_flag, 'empty flag' : self.empty_flag, 'host': self.host, 'port': self.port, 'max buffer size': self.max_buffer_size})
+				server_info = json.dumps({'exit flag': self.exit_flag, 'empty flag' : self.empty_flag, 'host': self.host, 'port': self.port, 'max buffer size': self.max_buffer_size, 'os': os_name})
 				server_info = server_info.encode('utf8')
 				connection.sendall(server_info)
 				self.connections[ip]['thread'] = Thread(target=self.df_client_thread, args=(connection, ip, port, self.max_buffer_size, read_f))
@@ -342,7 +344,7 @@ class Web:
 		self.file_in_handler.close()
 		self.file_out_handler.close()
 		if KILL_TASK_ON_CLOSE:
-			os.system('taskkill /f /pid {}'.format(os.getpid()))
+			kill_pid(os.getpid())
 
 
 class Spider:
@@ -383,6 +385,7 @@ class Spider:
 
 		# alpha
 		self.tasks = []
+		self.os_diff = None
 
 	def write_in(self, s):
 		if type(s) == str:
@@ -398,6 +401,8 @@ class Spider:
 		self.server_info = self.client.recv(self.max_buffer_size).decode('utf8').rstrip()
 		self.write_in(str(datetime.now().timestamp()) + ' - ' + self.server_info + '\n')
 		self.server_info = json.loads(self.server_info)
+
+		self.os_diff = self.server_info['os'] != os_name
 
 		self.bempty_flag = self.server_info['empty flag'].encode('utf8')
 		self.bexit_flag = self.server_info['exit flag'].encode('utf8')
@@ -462,7 +467,7 @@ class Spider:
 		self.file_in_handler.close()
 		self.file_out_handler.close()
 		if KILL_TASK_ON_CLOSE:
-			os.system('taskkill /f /pid {}'.format(os.getpid()))
+			kill_pid(os.getpid())
 
 
 def get_pid():

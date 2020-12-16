@@ -20,7 +20,7 @@ Although, this is subject to A LOT of change...
 import arachnoid as ara
 import interpreter as inter
 
-IP_ADDR = '192.168.43.33'
+IP_ADDR = '192.168.1.94'
 PORT_NUMBER = 1234
 
 for arg in ara.sys.argv:
