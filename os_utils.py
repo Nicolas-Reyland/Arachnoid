@@ -13,7 +13,13 @@ os_name = platform.uname()[0] # 'Windows' or 'Linux'
 if os_name not in ['Windows', 'Linux']:
 	raise Warning(f'UNRECOGNIZED OS "{os_}". Some functions will break. Proceeed with caution')
 
-os_ = os_name == 'Windows'
+is_win = os_name == 'Windows'
+
+def clear_stdout():
+	if is_win:
+		os.system('cls')
+	else:
+		os.system('clear')
 
 def open_url(url):
 	if os:
@@ -28,7 +34,7 @@ def open_url(url):
 		webbrowser.open_new_tab(url)
 
 def kill_pid(pid):
-	if os_:
+	if is_win:
 		cmd = f'taskkill /f /im {pid}'
 	else:
 		cmd = f'kill {pid}'

@@ -231,12 +231,20 @@ class Web:
 				for i,client_input in enumerate(client_inputs):
 					if i == n-1: # the last one (could not end, didn't check)
 						client_input = self._handle_half_input(client_input, connection)
+						if client_input is None:
+							msg = b'<MESSAGE Corrupted data could not be recovered. Please try to revert your action.>'
+							connection.sendall(msg)
+							continue
 					self._handle_client_input(client_input)
 					msg = self.bempty_flag
 					connection.sendall(msg) # could be really messed up when n > 2. Keep it cool and FEAR THE DAMN THING. not gonna act tho.
 
 			else:
 				client_input = self._handle_half_input(client_input, connection) # not enough data (missing data in next packet)
+				if client_input is None:
+					msg = b'<MESSAGE Corrupted data could not be recovered. Please try to revert your action.>'
+					connection.sendall(msg)
+					continue
 
 				self._handle_client_input(client_input)
 
@@ -294,7 +302,9 @@ class Web:
 			while client_input2[-1] != 62:
 				if len(client_input) + len(client_input2) > self.max_buffer_size:
 					print('client_input', client_input, '\n\nclient_input2', client_input2)
-					raise Exception('Recovery of corrupted data failed. buffer_size > self.max_buffer_size')
+					# raise Exception('Recovery of corrupted data failed. buffer_size > self.max_buffer_size')
+					print('[ERROR:Server:Client_Thread2:...:_handle_half_input] Recovery of corrupted data failed. buffer_size > self.max_buffer_size. Returning None.')
+					return None
 				# assuming this is absolutely the end and not a whole new packet...
 				client_input += client_input2
 
@@ -315,10 +325,12 @@ class Web:
 
 				counter += 1
 				if counter == 10:
-					raise Exception('Tried {} times to recover corrupted data. Stopping. I sense fear.'.format(counter))
+					# raise Exception('Tried {} times to recover corrupted data. Stopping. I sense fear.'.format(counter))
+					print('[ERROR:Server:Client_Thread2:...:_handle_half_input] Tried {} times to recover corrupted data. Stopping. Returning None.'.format(counter))
+					return None
 
 			client_input += client_input2
-			print('Recovered corruped data.')
+			print('Recovered corrupted data.')
 		return client_input
 
 	def _handle_client_input(self, client_input):
@@ -384,7 +396,8 @@ class Spider:
 		self.cprint = lambda s, level='info': print('[{}] {}'.format(self._level_tags[level], s)) if self.verbose else None
 
 		# alpha
-		self.tasks = []
+		self.in_tasks = []
+		self.out_tasks = []
 		self.os_diff = None
 
 	def write_in(self, s):
@@ -440,9 +453,9 @@ class Spider:
 		open(os.path.join(ROOT_DIR, 'OK Flag.txt'), 'w').write('1')
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
-			if self.tasks:
-				msg = self.tasks[0]
-				self.tasks.pop(0)
+			if self.out_tasks:
+				msg = self.out_tasks[0]
+				self.out_tasks.pop(0)
 				self.cprint('sent: {} bytes -> {}'.format(len(msg), msg[:30]), 'msg')
 			else:
 				msg = self.bempty_flag
@@ -457,8 +470,9 @@ class Spider:
 			if response[-1] != 62: #! 62 -> b'>'
 				input('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA???\n{}'.format(response))
 			if response != self.bempty_flag :
-				timestamp = str(datetime.now().timestamp()).encode('utf8')
-				self.write_in(b'<<RECV>> %b: %b\n' % (timestamp, response))
+				#timestamp = str(datetime.now().timestamp()).encode('utf8')
+				#data = b'<<RECV>> %b: %b\n' % (timestamp, response)
+				self.in_tasks.append(response)#write_in(b'<<RECV>> %b: %b\n' % (timestamp, response))
 				self.cprint('recv: {} bytes -> {}'.format(len(response), response[:30]), 'msg')
 
 
@@ -479,4 +493,4 @@ def get_ip_address():
 
 
 
-
+#

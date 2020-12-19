@@ -2,7 +2,7 @@
 import arachnoid as ara
 import interpreter as inter
 
-IP_ADDR = '192.168.43.33'
+IP_ADDR = '192.168.1.94'
 PORT_NUMBER = 1234
 
 for arg in ara.sys.argv:
@@ -14,7 +14,7 @@ for arg in ara.sys.argv:
 		print('port: {}'.format(PORT_NUMBER))
 
 PID = ara.get_pid()
-open(ara.os.path.join(ara.ROOT_DIR, 'inter v2 pid.txt'), 'w').write(str(PID))
+open(ara.os.path.join(ara.ROOT_DIR, 'pid.txt'), 'w').write(str(PID))
 print('PID: {}'.format(PID))
 
 def main():

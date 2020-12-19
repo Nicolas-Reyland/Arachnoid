@@ -48,10 +48,10 @@ def main():
 	thread2 = ara.Thread(target=lambda : inter.message_printer(file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt')))
 	thread2.start()
 
-	thread3 = ara.Thread(target=lambda : inter.interpreter(file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt'), announce=False, ignores=['restart', 'shutdown']))
+	thread3 = ara.Thread(target=lambda : inter.interpreter2(client, {}, announce=False, ignores=['restart', 'shutdown']))#file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt'), announce=False, ignores=['restart', 'shutdown']))
 	thread3.start()
 
-	inter.client_stop_function = client.tasks.clear
+	inter.client_stop_function = client.out_tasks.clear
 	inter.shell2(client, inter)
 
 	thread.join()
