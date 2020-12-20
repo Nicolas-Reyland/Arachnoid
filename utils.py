@@ -6,8 +6,12 @@ from os.path import join, isfile, isdir, getsize as filesize
 from os.path import getctime, getmtime
 import pickle
 import subprocess
-import signal
-from os_utils import 
+
+from os_utils import is_win
+
+if is_win:
+	import signal
+	from os_utils import Ticker
 
 calc_file_hash = lambda file: md5(open(file, 'rb').read()).hexdigest()
 get_file_info = lambda file, calc_hash: (filesize(file), ctime(getctime(file)), ctime(getmtime(file)), calc_file_hash(file) if calc_hash else 0)
@@ -150,18 +154,30 @@ class Shell:
 			)
 
 	def read(self):
-		signal.signal(signal.SIGALRM, self._raise_unicode)
-		line = ''
-		try:
-			while True:
-				signal.alarm(.1) # if the alarm is not disabled after .1 sec, raises exception
-				additional = self.process.stdout.readline().decode('utf-8').strip()
+		if is_win:
+			line = ''
+			t = Ticker(1)
+			t.start()
+			try:
+				while True:
+					t.reset() # reset ticker
+					line += self.process.stdout.readline().decode('utf-8').strip()
+			except: # cannot use UnicodeDecodeError here
+				t.stop()
+			return line
+		else:
+			signal.signal(signal.SIGALRM, self._raise_unicode)
+			line = ''
+			try:
+				while True:
+					signal.alarm(.1) # if the alarm is not disabled after .1 sec, raises exception
+					additional = self.process.stdout.readline().decode('utf-8').strip()
+					signal.alarm(0) # disable alarm
+					print('add', additional)
+					line += additional
+			except UnicodeDecodeError:
 				signal.alarm(0) # disable alarm
-				print('add', additional)
-				line += additional
-		except UnicodeDecodeError:
-			signal.alarm(0) # disable alarm
-		return line
+			return line
 
 	def write(self, msg):
 		self.process.stdin.write(f'{msg.strip()}\n'.encode('utf-8'))

@@ -3,6 +3,8 @@ import webbrowser
 import platform
 import os
 
+import threading, time
+
 '''
 functions which are os-dependant
 Supported oses re Windows and Linux.
@@ -46,3 +48,37 @@ def get_shell_executable_name():
 		return 'cmd.exe'
 	else:
 		return '/bin/bash'
+
+class Ticker:
+	'''
+	'''
+
+	def __init__(self, interval):
+		self.interval = interval
+		self.timer = 0
+		self.thread = threading.Thread(target=self._run)
+		self.should_run = None
+
+	def start(self):
+		self.should_run = True
+		self.thread.start()
+
+	def reset(self):
+		self.timer = time.perf_counter()
+
+	def stop(self):
+		self.should_run = False
+		self.thread.stop()
+		self.thread.join()
+
+	def _run(self):
+		sleep_time = min(.1, self.interval / 10)
+		# init timer
+		self.timer = time.perf_counter()
+		# while the timer has been reset since a period of time < than interval
+		while time.perf_counter() - self.timer < self.interval and self.should_run:
+			time.sleep(sleep_time)
+
+		if self.should_run:
+			# raise Exception
+			raise RuntimeError('Ticker timed out')
