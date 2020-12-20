@@ -161,7 +161,8 @@ class Shell:
 			try:
 				while True:
 					t.reset() # reset ticker
-					line += self.process.stdout.readline().decode('utf-8').strip()
+					additional = t.attempt(lambda : self.process.stdout.readline().decode('utf-8').strip())
+					line += additional
 			except: # cannot use UnicodeDecodeError here
 				t.stop()
 			return line

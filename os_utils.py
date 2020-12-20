@@ -4,6 +4,7 @@ import platform
 import os
 
 import threading, time
+import _thread
 
 '''
 functions which are os-dependant
@@ -58,6 +59,7 @@ class Ticker:
 		self.timer = 0
 		self.thread = threading.Thread(target=self._run)
 		self.should_run = None
+		self.sleep_time = min(.1, self.interval / 10)
 
 	def start(self):
 		self.should_run = True
@@ -68,17 +70,15 @@ class Ticker:
 
 	def stop(self):
 		self.should_run = False
-		self.thread.stop()
-		self.thread.join()
+		self.thread.join(timeout=self.interval + .15)
 
 	def _run(self):
-		sleep_time = min(.1, self.interval / 10)
 		# init timer
 		self.timer = time.perf_counter()
 		# while the timer has been reset since a period of time < than interval
 		while time.perf_counter() - self.timer < self.interval and self.should_run:
-			time.sleep(sleep_time)
+			time.sleep(self.sleep_time)
 
 		if self.should_run:
 			# raise Exception
-			raise RuntimeError('Ticker timed out')
+			_thread.interrupt_main()
