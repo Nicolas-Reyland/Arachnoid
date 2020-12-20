@@ -1,3 +1,4 @@
+# OS-related functions
 import webbrowser
 import platform
 import os
@@ -39,3 +40,9 @@ def kill_pid(pid):
 	else:
 		cmd = f'kill {pid}'
 	os.system(cmd)
+
+def get_shell_executable_name():
+	if is_win:
+		return 'cmd.exe'
+	else:
+		return '/bin/bash'

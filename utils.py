@@ -5,6 +5,7 @@ from os import listdir, chdir, getcwd
 from os.path import join, isfile, isdir, getsize as filesize
 from os.path import getctime, getmtime
 import pickle
+import subprocess
 
 calc_file_hash = lambda file: md5(open(file, 'rb').read()).hexdigest()
 get_file_info = lambda file, calc_hash: (filesize(file), ctime(getctime(file)), ctime(getmtime(file)), calc_file_hash(file) if calc_hash else 0)
@@ -125,3 +126,36 @@ def sync_dir(change_list):
 def apply_change(change):
 	# replace dir-prefix (other) by local prefix (e.g. /home/user/folder -> C:\Users\User\folder)
 	pass
+
+class Shell:
+	'''
+	'''
+
+	def __init__(self, executable):
+		self.executable = executable
+		self.process = None
+		self.terminate_timeout=0.2
+
+	def start(self):
+		self.process = subprocess.Popen(
+				self.executable,
+				stdin=subprocess.PIPE,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.PIPE
+			)
+
+	def read(self):
+		return self.process.stdout.readline().decode('utf-8').strip()
+
+	def write(self, msg):
+		self.process.stdin.write(f'{msg.strip()}\n'.encode('utf-8'))
+		self.process.stdin.flush()
+
+	def terminate(self):
+		self.process.stdin.close()
+		self.process.terminate()
+		self.process.wait(timeout=self.terminate_timeout)
+
+	def kill(self):
+		self.process.kill()
+
