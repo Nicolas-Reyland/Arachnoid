@@ -1,11 +1,13 @@
 import glob
 from time import ctime
 from hashlib import md5
-from os import listdir, chdir, getcwd
+from os import listdir, chdir, getcwd, read
 from os.path import join, isfile, isdir, getsize as filesize
 from os.path import getctime, getmtime
 import pickle
 import subprocess
+import signal
+from os_utils import 
 
 calc_file_hash = lambda file: md5(open(file, 'rb').read()).hexdigest()
 get_file_info = lambda file, calc_hash: (filesize(file), ctime(getctime(file)), ctime(getmtime(file)), calc_file_hash(file) if calc_hash else 0)
@@ -136,6 +138,9 @@ class Shell:
 		self.process = None
 		self.terminate_timeout=0.2
 
+	def _raise_unicode(self, *args):
+		raise UnicodeDecodeError('custom error. took too long')
+
 	def start(self):
 		self.process = subprocess.Popen(
 				self.executable,
@@ -145,7 +150,18 @@ class Shell:
 			)
 
 	def read(self):
-		return self.process.stdout.readline().decode('utf-8').strip()
+		signal.signal(signal.SIGALRM, self._raise_unicode)
+		line = ''
+		try:
+			while True:
+				signal.alarm(.1) # if the alarm is not disabled after .1 sec, raises exception
+				additional = self.process.stdout.readline().decode('utf-8').strip()
+				signal.alarm(0) # disable alarm
+				print('add', additional)
+				line += additional
+		except UnicodeDecodeError:
+			signal.alarm(0) # disable alarm
+		return line
 
 	def write(self, msg):
 		self.process.stdin.write(f'{msg.strip()}\n'.encode('utf-8'))

@@ -61,7 +61,7 @@ def scan_neighbors(net, interface, timeout=5):
 def map_local_network(interface_to_scan=None):
     if os.geteuid() != 0:
         print('You need to be root to run this script', file=sys.stderr)
-        sys.exit(1)
+        return 'failed'
 
     for network, netmask, _, interface, address, _ in scapy.config.conf.route.routes:
 
