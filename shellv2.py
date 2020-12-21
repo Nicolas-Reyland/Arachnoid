@@ -45,8 +45,8 @@ def main():
 	thread = ara.Thread(target=client.loop2)
 	thread.start()
 
-	thread2 = ara.Thread(target=lambda : inter.message_printer(file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt')))
-	thread2.start()
+	#thread2 = ara.Thread(target=lambda : inter.message_printer(file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt')))
+	#thread2.start()
 
 	thread3 = ara.Thread(target=lambda : inter.interpreter2(client, {}, announce=False, ignores=['restart', 'shutdown']))#file_path=ara.os.path.join(ara.ROOT_DIR, 'client in v2.txt'), announce=False, ignores=['restart', 'shutdown']))
 	thread3.start()

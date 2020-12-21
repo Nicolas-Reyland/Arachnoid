@@ -1,20 +1,20 @@
 import glob
 from time import ctime
 from hashlib import md5
-from os import listdir, chdir, getcwd, read
-from os.path import join, isfile, isdir, getsize as filesize
-from os.path import getctime, getmtime
+import os
 import pickle
-import subprocess
 
-from os_utils import is_win
+import re
+
+from os_utils import spawn, is_win
 
 if is_win:
-	import signal
-	from os_utils import Ticker
+        cmd_prompt = re.compile('[A-Z]\:.+>')
+else:
+        cmd_prompt = re.compile('.* \$ $')
 
 calc_file_hash = lambda file: md5(open(file, 'rb').read()).hexdigest()
-get_file_info = lambda file, calc_hash: (filesize(file), ctime(getctime(file)), ctime(getmtime(file)), calc_file_hash(file) if calc_hash else 0)
+get_file_info = lambda file, calc_hash: (os.path.getsize(file), ctime(os.path.getctime(file)), ctime(os.path.getmtime(file)), calc_file_hash(file) if calc_hash else 0)
 
 def compare_file(file1, file2, check_hash=False):
 	'''Return True if the two files are the same. False if they have differences.
@@ -26,15 +26,15 @@ def compare_file(file1, file2, check_hash=False):
 	'''
 
 	# compare sizes
-	if filesize(file1) != filesize(file2):
+	if os.path.getsize(file1) != os.path.getsize(file2):
 		return False
 
 	# compare created time
-	if ctime(getctime(file1)) != ctime(getctime(file2)):
+	if ctime(os.path.getctime(file1)) != ctime(os.path.getctime(file2)):
 		return False
 
 	# comapre last modified time
-	if ctime(getmtime(file1)) != ctime(getmtime(file2)):
+	if ctime(os.path.getmtime(file1)) != ctime(os.path.getmtime(file2)):
 		return False
 
 	if check_hash:
@@ -46,20 +46,20 @@ def compare_file(file1, file2, check_hash=False):
 		return True
 
 def hashify_dir(dir_path, calc_hash=False):
-	root = getcwd()
-	chdir(dir_path)
-	for obj in listdir(dir_path):
-		obj = join(dir_path, obj)
-		if isfile(obj):
+	root = os.getcwd()
+	os.chdir(dir_path)
+	for obj in os.listdir(dir_path):
+		obj = os.path.join(dir_path, obj)
+		if os.path.isfile(obj):
 			yield (('f', obj), get_file_info(obj, calc_hash))
-		elif isdir(obj):
+		elif os.path.isdir(obj):
 			yield (('d', obj.replace('\\', '/')), dict(hashify_dir(obj, calc_hash)))
 		else:
 			print(f'WARNING: Ignoring object {obj} which is neither a file, not a directory')
-	chdir(root)
+	os.chdir(root)
 
 def save_obj(obj):
-	filepath = join(getcwd(), '__temp.dirhash')
+	filepath = os.path.join(os.getcwd(), '__temp.dirhash')
 	fobj = open(filepath, 'wb')
 	pickle.dump(obj, fobj)
 	return filepath
@@ -139,56 +139,19 @@ class Shell:
 
 	def __init__(self, executable):
 		self.executable = executable
-		self.process = None
-		self.terminate_timeout=0.2
-
-	def _raise_unicode(self, *args):
-		raise UnicodeDecodeError('custom error. took too long')
+		self.client = None
 
 	def start(self):
-		self.process = subprocess.Popen(
-				self.executable,
-				stdin=subprocess.PIPE,
-				stdout=subprocess.PIPE,
-				stderr=subprocess.PIPE
-			)
+		self.client = spawn(self.executable)
 
 	def read(self):
-		if is_win:
-			line = ''
-			t = Ticker(1)
-			t.start()
-			try:
-				while True:
-					t.reset() # reset ticker
-					additional = t.attempt(lambda : self.process.stdout.readline().decode('utf-8').strip())
-					line += additional
-			except: # cannot use UnicodeDecodeError here
-				t.stop()
-			return line
-		else:
-			signal.signal(signal.SIGALRM, self._raise_unicode)
-			line = ''
-			try:
-				while True:
-					signal.alarm(.1) # if the alarm is not disabled after .1 sec, raises exception
-					additional = self.process.stdout.readline().decode('utf-8').strip()
-					signal.alarm(0) # disable alarm
-					print('add', additional)
-					line += additional
-			except UnicodeDecodeError:
-				signal.alarm(0) # disable alarm
-			return line
+		self.client.expect(cmd_prompt)
+		try: return self.client.before + self.client.match.group(0)
+		except: return self.client.before
 
 	def write(self, msg):
-		self.process.stdin.write(f'{msg.strip()}\n'.encode('utf-8'))
-		self.process.stdin.flush()
-
-	def terminate(self):
-		self.process.stdin.close()
-		self.process.terminate()
-		self.process.wait(timeout=self.terminate_timeout)
+		self.client.sendline(msg)
 
 	def kill(self):
-		self.process.kill()
+		self.client.kill()
 

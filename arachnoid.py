@@ -4,7 +4,6 @@ from threading import Thread
 from traceback import print_exc
 from datetime import datetime
 import time
-import hashlib
 import json
 import os
 
@@ -39,23 +38,6 @@ from os_utils import os_name, kill_pid
 ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), os.path.dirname(sys.argv[0])))
 KILL_TASK_ON_CLOSE = True
 _LEVEL_TAGS = {'info' : '!', 'msg': '-', 'unexpected': '?', 'warning': 'W', 'error': 'E'}
-hashlib_vars = vars(hashlib)
-hash_func_struct = lambda name: lambda x: hashlib_vars[name](x).hexdigest()
-HASHING_DICT = {
-				'none': lambda x: x.decode('utf8'),
-				'md5': hash_func_struct('md5'),
-				'sha1': hash_func_struct('sha1'),
-				'sha224': hash_func_struct('sha224'),
-				'sha256': hash_func_struct('sha256'),
-				'sha384': hash_func_struct('sha384'),
-				'sha3_224': hash_func_struct('sha3_224'),
-				'sha3_256': hash_func_struct('sha3_256'),
-				'sha3_384': hash_func_struct('sha3_384'),
-				'sha3_512': hash_func_struct('sha3_512'),
-				'sha512': hash_func_struct('sha512')
-				}
-
-
 
 class Web:
 	'''
@@ -132,7 +114,7 @@ class Web:
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
 			connection, addr = self.soc.accept()
 			ip, port = addr[0], addr[1]
-			self.cprint('Connection recieved with ip: {} port: {}'.format(ip, port))
+			print('Connection recieved with ip: {} port: {}'.format(ip, port))
 
 			self.connections[ip] = {
 									'connection': connection,
@@ -206,10 +188,8 @@ class Web:
 	def client_thread2(self, connection, ip, port, max_buffer_size, *args):
 		client_info = connection.recv(self.max_buffer_size)
 		client_info = client_info.decode('utf8').rstrip()
-		print('raw client info', client_info)
 		if client_info[-1] != '}':
 			client_info = client_info[:-list(client_info)[::-1].index('}')]
-		print('client info', client_info)
 		client_info = json.loads(client_info)
 		name = client_info['name']
 		self.connections[ip]['name'] = name

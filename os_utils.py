@@ -3,9 +3,6 @@ import webbrowser
 import platform
 import os
 
-import threading, time
-import _thread
-
 '''
 functions which are os-dependant
 Supported oses re Windows and Linux.
@@ -18,6 +15,11 @@ if os_name not in ['Windows', 'Linux']:
 	raise Warning(f'UNRECOGNIZED OS "{os_}". Some functions will break. Proceeed with caution')
 
 is_win = os_name == 'Windows'
+
+if is_win:
+	from wexpect import spawn
+else:
+	from pexpect import spawnu as spawn
 
 def clear_stdout():
 	if is_win:
@@ -50,35 +52,34 @@ def get_shell_executable_name():
 	else:
 		return '/bin/bash'
 
-class Ticker:
+def complex_path(root_dir, target_dir):
+	'''For this function to be called, OS DIFF must be true
 	'''
-	'''
+	# check if complete path was given
+	if os.path.isdir(target_dir):
+		return target_dir
+	# assert there are no bizarre things in file/folder names
+	if is_win: assert not '/' in target_dir # no forward slash in file names/folder names
+	else: assert not '\\' in root_dir # no backslash in file names/folder names
 
-	def __init__(self, interval):
-		self.interval = interval
-		self.timer = 0
-		self.thread = threading.Thread(target=self._run)
-		self.should_run = None
-		self.sleep_time = min(.1, self.interval / 10)
+	# every dir-separator is a "/"
+	if is_win: root_dir = root_dir.replace('\\', '/')
+	else: target_dir = target_dir.replace('\\', '/')
 
-	def start(self):
-		self.should_run = True
-		self.thread.start()
+	# add '/' at the end of both, if absent. so we can check on equality
+	if not root_dir.endswith('/'): root_dir += '/'
+	if not target_dir.endswith('/'): target_dir += '/'
 
-	def reset(self):
-		self.timer = time.perf_counter()
-
-	def stop(self):
-		self.should_run = False
-		self.thread.join(timeout=self.interval + .15)
-
-	def _run(self):
-		# init timer
-		self.timer = time.perf_counter()
-		# while the timer has been reset since a period of time < than interval
-		while time.perf_counter() - self.timer < self.interval and self.should_run:
-			time.sleep(self.sleep_time)
-
-		if self.should_run:
-			# raise Exception
-			_thread.interrupt_main()
+	# check if euqual, containing, work-with-".."
+	if target_dir == root_dir:
+		return target_dir
+	#
+	if target_dir in root_dir:
+		assert root_dir.startswith(target_dir)
+		return ''
+	# more complex path
+	# C:\Users\Manon\Documents\Arachnoid
+	# /home/ilu_vatar_/python/networking/Arachnoid
+	# ../../web/
+	# __pycache__/
+	os.path.join(root_dir, target_dir)
