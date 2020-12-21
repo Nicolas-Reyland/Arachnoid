@@ -196,6 +196,9 @@ class Web:
 		self.connections[ip]['info'] = client_info # yep, copy of name in this dict (bc why not ?)
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
+			# tmp thing?
+			time.sleep(.05)
+
 			client_input = connection.recv(self.max_buffer_size)
 			client_input_size = len(client_input)
 
@@ -433,6 +436,8 @@ class Spider:
 		open(os.path.join(ROOT_DIR, 'OK Flag.txt'), 'w').write('1')
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
+			# tmp thing?
+			time.sleep(.05)
 			if self.out_tasks:
 				msg = self.out_tasks[0]
 				self.out_tasks.pop(0)
