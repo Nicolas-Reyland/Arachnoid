@@ -8,7 +8,7 @@ import re
 
 from os_utils import spawn, is_win
 
-cmd_promts = {
+cmd_prompts = {
 	'cmd': re.compile('[A-Z]\:.+>'),
 	'cmd.exe': re.compile('[A-Z]\:.+>'),
 	'/bin/bash': re.compile('.+ \$ '),
