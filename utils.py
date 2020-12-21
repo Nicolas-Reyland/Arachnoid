@@ -8,10 +8,14 @@ import re
 
 from os_utils import spawn, is_win
 
-if is_win:
-        cmd_prompt = re.compile('[A-Z]\:.+>')
-else:
-        cmd_prompt = re.compile('.* \$ $')
+cmd_promts = {
+	'cmd': re.compile('[A-Z]\:.+>'),
+	'cmd.exe': re.compile('[A-Z]\:.+>'),
+	'/bin/bash': re.compile('.+ \$ '),
+	'powershell': re.compile('PS [A-Z]\:.+>'),
+}
+
+
 
 calc_file_hash = lambda file: md5(open(file, 'rb').read()).hexdigest()
 get_file_info = lambda file, calc_hash: (os.path.getsize(file), ctime(os.path.getctime(file)), ctime(os.path.getmtime(file)), calc_file_hash(file) if calc_hash else 0)
@@ -145,7 +149,7 @@ class Shell:
 		self.client = spawn(self.executable)
 
 	def read(self):
-		self.client.expect(cmd_prompt)
+		self.client.expect(cmd_prompts[self.executable])
 		try: return self.client.before + self.client.match.group(0)
 		except: return self.client.before
 
