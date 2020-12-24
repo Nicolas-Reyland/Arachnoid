@@ -197,7 +197,7 @@ class Web:
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
 			# tmp thing?
-			time.sleep(.05)
+			#time.seep(.05)
 
 			client_input = connection.recv(self.max_buffer_size)
 			client_input_size = len(client_input)
@@ -437,7 +437,7 @@ class Spider:
 
 		while self.alive and 'OK Flag.txt' in os.listdir(ROOT_DIR):
 			# tmp thing?
-			time.sleep(.05)
+			#time.seep(.05)
 			if self.out_tasks:
 				msg = self.out_tasks[0]
 				self.out_tasks.pop(0)
